@@ -1,0 +1,20 @@
+"Updater"
+{
+	"Information"
+	{
+		"Version"
+		{
+			"Latest"		"1.0"
+			"Previous"		"1.0"
+		}
+
+		"Notes"	"See full changelog from 1.0 to 1.1 here:"
+		"Notes"	"forums.alliedmods.net/showthread.php?p=1889086"
+	}
+
+	"Files"
+	{
+		"Plugin"		"Path_SM/plugins/csgo_skins.smx"
+		"Source"		"Path_SM/scripting/csgo_skins.sp"
+	}
+}
