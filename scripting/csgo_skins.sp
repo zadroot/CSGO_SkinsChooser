@@ -4,7 +4,7 @@
 * Description:
 *   Changes player's model on the fly without editing any configuration files.
 *
-* Version 1.0
+* Version 1.1
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -19,13 +19,14 @@
 
 // ====[ CONSTANTS ]===========================================================
 #define PLUGIN_NAME    "CS:GO Skins Chooser"
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "1.1"
 #define UPDATE_URL     "https://raw.github.com/zadroot/CSGO_SkinsChooser/master/updater.txt"
 #define RANDOM_MODEL   0x64
 
 // ====[ VARIABLES ]===========================================================
 new	Handle:sc_enable     = INVALID_HANDLE,
 	Handle:sc_random     = INVALID_HANDLE,
+	Handle:sc_changetype = INVALID_HANDLE,
 	Handle:sc_admflag    = INVALID_HANDLE,
 	Handle:t_skins_menu  = INVALID_HANDLE,
 	Handle:ct_skins_menu = INVALID_HANDLE,
@@ -52,15 +53,15 @@ public OnPluginStart()
 {
 	// Create console variables
 	CreateConVar("sm_csgo_skins_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_PLUGIN|FCVAR_SPONLY);
-	sc_enable   = CreateConVar("sm_csgo_skins_enable",  "1", "Whether or not enable CS:GO Skins Chooser plugin",                                   FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	sc_random   = CreateConVar("sm_csgo_skins_random",  "1", "Whether or not randomly change models for all players on every respawn",             FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	sc_admflag  = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	sc_enable     = CreateConVar("sm_csgo_skins_enable",  "1", "Whether or not enable CS:GO Skins Chooser plugin",                                   FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	sc_random     = CreateConVar("sm_csgo_skins_random",  "1", "Whether or not randomly change models for all players on every respawn",             FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\1 = Immediately",  FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 
 	// Create/register client commands
 	RegConsoleCmd("skin",   Command_SkinsMenu);
 	RegConsoleCmd("skins",  Command_SkinsMenu);
 	RegConsoleCmd("model",  Command_SkinsMenu);
-	RegConsoleCmd("models", Command_SkinsMenu);
 
 	// Hook respawn_post event
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
@@ -81,16 +82,16 @@ public OnPluginStart()
  * ---------------------------------------------------------------------------- */
 public OnMapStart()
 {
-	// Loads model's config from sourcemod/configs folder
-	decl String:file[PLATFORM_MAX_PATH], String:curmap[32];
+	// Declare string to load skin's config from sourcemod/configs folder
+	decl String:file[PLATFORM_MAX_PATH], String:curmap[64];
 
 	// Get current map
 	GetCurrentMap(curmap, sizeof(curmap));
 
-	// Let's check that custom skin configuration file is exists for current map
+	// Let's check that custom skin configuration file is exists for this map
 	BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.ini", curmap);
 
-	// Could not read config for current map
+	// Could not read config for new map
 	if (!FileExists(file))
 	{
 		// Then use default one
@@ -149,7 +150,6 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 						SetEntityModel(client, TerrorSkin[model]);
 					}
 				}
-
 				case CS_TEAM_CT: // Counter-Terrorists
 				{
 					// Also make sure that player havent chosen any skin yet
@@ -176,11 +176,10 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
  * ---------------------------------------------------------------------------- */
 public Action:Command_SkinsMenu(client, args)
 {
-	// Are plugin is enabled?
 	if (GetConVarBool(sc_enable))
 	{
 		// Once again make sure that client is valid
-		if (IsValidClient(client))
+		if (IsValidClient(client) || !GetConVarBool(sc_changetype))
 		{
 			// Get flag name from convar string and get client's access
 			decl String:admflag[2];
@@ -222,6 +221,17 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
 
 		// Save 'the chosen one'
 		ChosenSkin[client] = skin;
+
+		// Set player model immediately if needed
+		if (GetConVarBool(sc_changetype))
+		{
+			// Depends on client team obviously
+			switch (GetClientTeam(client))
+			{
+				case CS_TEAM_T:  SetEntityModel(client,  TerrorSkin[skin]);
+				case CS_TEAM_CT: SetEntityModel(client, CTerrorSkin[skin]);
+			}
+		}
 	}
 }
 
@@ -276,7 +286,7 @@ bool:ParseConfigFile(const String:file[])
 	SMC_SetParseEnd(parser, Config_End);
 
 	// Checking for error
-	new String:error[256], line = 0, col = 0, SMCError:result = SMC_ParseFile(parser, file, line, col);
+	new String:error[256], line, col, SMCError:result = SMC_ParseFile(parser, file, line, col);
 
 	// Close handle
 	CloseHandle(parser);
