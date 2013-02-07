@@ -8,22 +8,22 @@
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
-// ====[ SEMICOLON ]==========================================================
+// ====[ SEMICOLON ]===========================================================
 #pragma semicolon 1
 
-// ====[ INCLUDES ]===========================================================
+// ====[ INCLUDES ]============================================================
 #include <sdktools>
 #include <cstrike>
 #undef REQUIRE_PLUGIN
 #include <updater>
 
-// ====[ CONSTANTS ]==========================================================
+// ====[ CONSTANTS ]===========================================================
 #define PLUGIN_NAME    "CS:GO Skins Chooser"
 #define PLUGIN_VERSION "1.0"
 #define UPDATE_URL     "https://raw.github.com/zadroot/CSGO_SkinsChooser/master/updater.txt"
 #define RANDOM_MODEL   0x64
 
-// ====[ VARIABLES ]==========================================================
+// ====[ VARIABLES ]===========================================================
 new	Handle:sc_enable     = INVALID_HANDLE,
 	Handle:sc_random     = INVALID_HANDLE,
 	Handle:sc_admflag    = INVALID_HANDLE,
@@ -33,7 +33,7 @@ new	Handle:sc_enable     = INVALID_HANDLE,
 	String:CTerrorSkin[PLATFORM_MAX_PATH][64],
 	AdmFlag, ConfigLevel, TSkins_All, CTSkins_All, ChosenSkin[MAXPLAYERS + 1];
 
-// ====[ PLUGIN ]=============================================================
+// ====[ PLUGIN ]==============================================================
 public Plugin:myinfo =
 {
 	name        = PLUGIN_NAME,
@@ -47,7 +47,7 @@ public Plugin:myinfo =
 /* OnPluginStart()
  *
  * When the plugin starts up.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public OnPluginStart()
 {
 	// Create console variables
@@ -62,7 +62,7 @@ public OnPluginStart()
 	RegConsoleCmd("model",  Command_SkinsMenu);
 	RegConsoleCmd("models", Command_SkinsMenu);
 
-	// Hook spawn post event
+	// Hook respawn_post event
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
 
 	// Create and exec plugin configuration file
@@ -78,10 +78,10 @@ public OnPluginStart()
 /* OnMapStart()
  *
  * When the map starts.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public OnMapStart()
 {
-	// Loads skin config from sourcemod/configs folder
+	// Loads model's config from sourcemod/configs folder
 	decl String:file[PLATFORM_MAX_PATH], String:curmap[32];
 
 	// Get current map
@@ -90,11 +90,8 @@ public OnMapStart()
 	// Let's check that custom skin configuration file is exists for current map
 	BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.ini", curmap);
 
-	// Read file
-	new Handle:hFile = OpenFile(file, "r");
-
 	// Could not read config for current map
-	if (hFile == INVALID_HANDLE)
+	if (!FileExists(file))
 	{
 		// Then use default one
 		BuildPath(Path_SM, file, sizeof(file), "configs/skins/any.ini");
@@ -102,8 +99,6 @@ public OnMapStart()
 		// No config?
 		if (!FileExists(file)) SetFailState("\nUnable to open base configuration file: \"%s\"!", file);
 	}
-
-	CloseHandle(hFile);
 
 	// Create menus and parse a config then
 	PrepareMenus();
@@ -113,7 +108,7 @@ public OnMapStart()
 /* OnLibraryAdded()
  *
  * Called after a library is added that the current plugin references.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public OnLibraryAdded(const String:name[])
 {
 	if (StrEqual(name, "updater"))
@@ -125,7 +120,7 @@ public OnLibraryAdded(const String:name[])
 /* OnPlayerSpawn()
  *
  * Called after a player spawns.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	// Skip event if plugin is disabled
@@ -154,6 +149,7 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 						SetEntityModel(client, TerrorSkin[model]);
 					}
 				}
+
 				case CS_TEAM_CT: // Counter-Terrorists
 				{
 					// Also make sure that player havent chosen any skin yet
@@ -177,7 +173,7 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 /* Command_SkinsMenu()
  *
  * Shows skin's menu to a player.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public Action:Command_SkinsMenu(client, args)
 {
 	// Are plugin is enabled?
@@ -194,7 +190,8 @@ public Action:Command_SkinsMenu(client, args)
 			AdmFlag = ReadFlagString(admflag);
 
 			// Check if player is having any access (including NO-privilegies)
-			if (AdmFlag == 0 || (AdmFlag > 0 && CheckCommandAccess(client, NULL_STRING, AdmFlag, true)))
+			if (AdmFlag == 0
+			|| (AdmFlag >  0 && CheckCommandAccess(client, NULL_STRING, AdmFlag, true)))
 			{
 				// Show individual skin menu depends on client's team
 				switch (GetClientTeam(client))
@@ -213,7 +210,7 @@ public Action:Command_SkinsMenu(client, args)
 /* MenuHandler_ChooseSkin()
  *
  * Menu to set player's skin.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
 {
 	// Called when player pressed something in a menu
@@ -231,7 +228,7 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
 /* PrepareMenus()
  *
  * Create menus if config is valid.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 PrepareMenus()
 {
 	// At first we should reset amount of avalible t/ct skins
@@ -259,6 +256,7 @@ PrepareMenus()
 	SetMenuTitle(t_skins_menu,  "Choose your Terrorist skin:");
 	SetMenuTitle(ct_skins_menu, "Choose your Counter-Terrorist skin:");
 
+	// Add random skins option if feature is enabled
 	if (GetConVarBool(sc_random))
 	{
 		AddMenuItem(t_skins_menu,  NULL_STRING, "Random");
@@ -269,7 +267,7 @@ PrepareMenus()
 /* ParseConfigFile()
  *
  * Parses a config file.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 bool:ParseConfigFile(const String:file[])
 {
 	// Create parser with all sections (start & end)
@@ -295,7 +293,7 @@ bool:ParseConfigFile(const String:file[])
 /* Config_NewSection()
  *
  * Called when the parser is entering a new section or sub-section.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public SMCResult:Config_NewSection(Handle:parser, const String:section[], bool:quotes)
 {
 	// Ignore first config level ("Skins")
@@ -320,7 +318,7 @@ public SMCResult:Config_NewSection(Handle:parser, const String:section[], bool:q
 /* Config_UnknownKeyValue()
  *
  * Called when the parser finds a new key/value pair.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public SMCResult:Config_UnknownKeyValue(Handle:parser, const String:key[], const String:value[], bool:key_quotes, bool:value_quotes)
 {
 	// Disable a plugin if unknown key value found in a config file
@@ -331,7 +329,7 @@ public SMCResult:Config_UnknownKeyValue(Handle:parser, const String:key[], const
 /* Config_TerroristSkins()
  *
  * Called when the parser finds a first key/value pair.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public SMCResult:Config_TerroristSkins(Handle:parser, const String:skin_fullpath[], const String:skin_name[], bool:key_quotes, bool:value_quotes)
 {
 	// Copy the full path of skin from config and save it
@@ -350,7 +348,7 @@ public SMCResult:Config_TerroristSkins(Handle:parser, const String:skin_fullpath
 /* Config_CounterTerroristSkins()
  *
  * Called when the parser finds a second key/value pair.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public SMCResult:Config_CounterTerroristSkins(Handle:parser, const String:skin_fullpath[], const String:skin_name[], bool:key_quotes, bool:value_quotes)
 {
 	decl String:skin_id[3];
@@ -370,7 +368,7 @@ public SMCResult:Config_CounterTerroristSkins(Handle:parser, const String:skin_f
 /* Config_EndSection()
  *
  * Called when the parser finds the end of the current section.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public SMCResult:Config_EndSection(Handle:parser)
 {
 	// Config is ready - return to original level ("Skins")
@@ -384,7 +382,7 @@ public SMCResult:Config_EndSection(Handle:parser)
 /* Config_End()
  *
  * Called when the config is ready.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 public Config_End(Handle:parser, bool:halted, bool:failed)
 {
 	// Disable plugin because something is wroung around
@@ -394,7 +392,7 @@ public Config_End(Handle:parser, bool:halted, bool:failed)
 /* IsValidClient()
  *
  * Checks if a client is valid.
- * --------------------------------------------------------------------------- */
+ * ---------------------------------------------------------------------------- */
 bool:IsValidClient(client)
 {
 	// Default 'valid player' checking
