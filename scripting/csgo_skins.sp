@@ -88,7 +88,7 @@ public OnMapStart()
 	GetCurrentMap(curmap, sizeof(curmap));
 
 	// Let's check that custom skin configuration file is exists for current map
-	BuildPath(PathType:Path_SM, file, sizeof(file), "configs/skins/%s.ini", curmap);
+	BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.ini", curmap);
 
 	// Read file
 	new Handle:hFile = OpenFile(file, "r");
@@ -97,11 +97,13 @@ public OnMapStart()
 	if (hFile == INVALID_HANDLE)
 	{
 		// Then use default one
-		BuildPath(PathType:Path_SM, file, sizeof(file), "configs/skins/any.ini");
+		BuildPath(Path_SM, file, sizeof(file), "configs/skins/any.ini");
 
 		// No config?
 		if (!FileExists(file)) SetFailState("\nUnable to open base configuration file: \"%s\"!", file);
 	}
+
+	CloseHandle(hFile);
 
 	// Create menus and parse a config then
 	PrepareMenus();
@@ -276,7 +278,7 @@ bool:ParseConfigFile(const String:file[])
 	SMC_SetParseEnd(parser, Config_End);
 
 	// Checking for error
-	new String:error[256], line = 0, col  = 0, SMCError:result = SMC_ParseFile(parser, file, line, col);
+	new String:error[256], line = 0, col = 0, SMCError:result = SMC_ParseFile(parser, file, line, col);
 
 	// Close handle
 	CloseHandle(parser);
@@ -322,7 +324,7 @@ public SMCResult:Config_NewSection(Handle:parser, const String:section[], bool:q
 public SMCResult:Config_UnknownKeyValue(Handle:parser, const String:key[], const String:value[], bool:key_quotes, bool:value_quotes)
 {
 	// Disable a plugin if unknown key value found in a config file
-	SetFailState("\nDidn't recognize configuration: %s = %s", key, value);
+	SetFailState("\nDidn't recognize configuration: %s = %s!", key, value);
 	return SMCParse_Continue;
 }
 
