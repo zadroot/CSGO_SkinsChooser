@@ -55,7 +55,7 @@ public OnPluginStart()
 	CreateConVar("sm_csgo_skins_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_PLUGIN|FCVAR_SPONLY);
 	sc_enable     = CreateConVar("sm_csgo_skins_enable",  "1", "Whether or not enable CS:GO Skins Chooser plugin",                                   FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_random     = CreateConVar("sm_csgo_skins_random",  "1", "Whether or not randomly change models for all players on every respawn",             FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\1 = Immediately",  FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\n1 = Immediately",  FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 
 	// Create/register client commands
@@ -228,7 +228,7 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
 			// Depends on client team obviously
 			switch (GetClientTeam(client))
 			{
-				case CS_TEAM_T:  SetEntityModel(client,  TerrorSkin[skin]);
+				case CS_TEAM_T:  SetEntityModel(client, TerrorSkin[skin]);
 				case CS_TEAM_CT: SetEntityModel(client, CTerrorSkin[skin]);
 			}
 		}
