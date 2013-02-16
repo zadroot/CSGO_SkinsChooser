@@ -4,20 +4,22 @@
 	{
 		"Version"
 		{
-			"Latest"		"1.1"
-			"Previous"		"1.0"
+			"Latest"		"1.1.1"
+			"Previous"		"1.1"
 		}
 
-		"Notes"	"Changes in 1.1:"
-		"Notes"	"Added new ConVar: sm_csgo_skins_change - Determines when change selected player skin"
-		"Notes"	"Removed 'models' command since its already exists in SM SkinChooser by Andi"
-		"Notes"	"Fixed possibly memory leak on map start"
-		"Notes"	"Other minor changes"
+		"Notes"	"Changes in 1.1.1:"
+		"Notes"	"Changed plugin version to prevent problem with Valve's KeyValue parser (required for Updater)"
+		"Notes"	"Added ability to save selected player skin when random mode is enabled"
+		"Notes"	"Fixed a very rare issue when plugin could crash server when all avalible skins was unlocked"
+		"Notes"	"Removed corrupted models from config file"
+		"Notes"	"Optimized plugin"
 	}
 
 	"Files"
 	{
 		"Plugin"		"Path_SM/plugins/csgo_skins.smx"
+		"Plugin"		"Path_SM/configs/skins/any.ini"
 		"Source"		"Path_SM/scripting/csgo_skins.sp"
 	}
 }
