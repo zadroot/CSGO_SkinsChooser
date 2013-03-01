@@ -4,22 +4,21 @@
 	{
 		"Version"
 		{
-			"Latest"		"1.1.1"
-			"Previous"		"1.1"
+			"Latest"		"1.2.0"
+			"Previous"		"1.1.1"
 		}
 
-		"Notes"	"Changes in 1.1.1:"
-		"Notes"	"Changed plugin version to prevent problem with Valve's KeyValue parser (required for Updater)"
-		"Notes"	"Added ability to save selected player skin when random mode is enabled"
-		"Notes"	"Fixed a very rare issue when plugin could crash server when all avalible skins was unlocked"
-		"Notes"	"Removed corrupted models from config file"
-		"Notes"	"Optimized plugin"
+		"Notes"	"Changes in 1.2.0:"
+		"Notes"	"Rewrote configuration file for plugin (now using KeyValues insead of SourceMod parser)"
+		"Notes"	"Added player hands support!"
+		"Notes"	"Added support to command access via \"csgo_skins_override\""
+		"Notes"	"Slightly optimized plugin"
 	}
 
 	"Files"
 	{
 		"Plugin"		"Path_SM/plugins/csgo_skins.smx"
-		"Plugin"		"Path_SM/configs/skins/any.ini"
+		"Plugin"		"Path_SM/configs/skins/any.cfg"
 		"Source"		"Path_SM/scripting/csgo_skins.sp"
 	}
 }

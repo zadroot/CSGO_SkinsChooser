@@ -2,9 +2,9 @@
 * CS:GO Skins Chooser by Root
 *
 * Description:
-*   Changes player's model on the fly without editing any configuration files.
+*   Changes player skin & arms on the fly without editing any configuration files.
 *
-* Version 1.1.1
+* Version 1.2.0
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -19,7 +19,7 @@
 
 // ====[ CONSTANTS ]=========================================================================
 #define PLUGIN_NAME     "CS:GO Skins Chooser"
-#define PLUGIN_VERSION  "1.1.1"
+#define PLUGIN_VERSION  "1.2.0"
 #define UPDATE_URL      "https://raw.github.com/zadroot/CSGO_SkinsChooser/master/updater.txt"
 #define MAX_SKINS_COUNT 72
 
@@ -31,15 +31,17 @@ new	Handle:sc_enable     = INVALID_HANDLE,
 	Handle:t_skins_menu  = INVALID_HANDLE,
 	Handle:ct_skins_menu = INVALID_HANDLE,
 	String:TerrorSkin[MAX_SKINS_COUNT][64],
+	String:TerrorArms[MAX_SKINS_COUNT][64],
 	String:CTerrorSkin[MAX_SKINS_COUNT][64],
-	AdmFlag, ConfigLevel, TSkins_Count, CTSkins_Count, Selected[MAXPLAYERS + 1] = {-1, ...};
+	String:CTerrorArms[MAX_SKINS_COUNT][64],
+	AdmFlag, TSkins_Count, CTSkins_Count, Selected[MAXPLAYERS + 1] = {-1, ...};
 
 // ====[ PLUGIN ]============================================================================
 public Plugin:myinfo =
 {
 	name        = PLUGIN_NAME,
 	author      = "Root",
-	description = "Simply skin chooser for CS:GO",
+	description = "Simply stock skin chooser for CS:GO",
 	version     = PLUGIN_VERSION,
 	url         = "forums.alliedmods.net/showthread.php?p=1889086"
 };
@@ -58,12 +60,12 @@ public OnPluginStart()
 	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\n1 = Immediately", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 
-	// Create / register client commands
+	// Create/register client commands
 	RegConsoleCmd("skin",  Command_SkinsMenu);
 	RegConsoleCmd("skins", Command_SkinsMenu);
 	RegConsoleCmd("model", Command_SkinsMenu);
 
-	// Hook post respawn event
+	// Hook respawning event
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
 
 	// Create and exec plugin configuration file
@@ -83,27 +85,27 @@ public OnPluginStart()
 public OnMapStart()
 {
 	// Declare string to load skin's config from sourcemod/configs folder
-	decl String:file[PLATFORM_MAX_PATH], String:curmap[32];
+	decl String:file[PLATFORM_MAX_PATH], String:curmap[64];
 
 	// Get current map
 	GetCurrentMap(curmap, sizeof(curmap));
 
 	// Let's check that custom skin configuration file is exists for this map
-	BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.ini", curmap);
+	BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.cfg", curmap);
 
 	// Could not read config for new map
 	if (!FileExists(file))
 	{
 		// Then use default one
-		BuildPath(Path_SM, file, sizeof(file), "configs/skins/any.ini");
+		BuildPath(Path_SM, file, sizeof(file), "configs/skins/any.cfg");
 
 		// No config wtf?
-		if (!FileExists(file)) SetFailState("\nUnable to open generic configuration file: \"%s\"!", file);
+		if (!FileExists(file)) SetFailState("Fatal error: Unable to open generic configuration file \"%s\"", file);
 	}
 
-	// Create menus and parse a config then
+	// Refresh menus and config
 	PrepareMenus();
-	ParseConfigFile(file);
+	PrepareConfig(file);
 }
 
 /* OnLibraryAdded()
@@ -133,6 +135,10 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 			// Get chosen model if avalible
 			new model = Selected[client];
 
+			// Get same random number for using same arms and skin
+			new trandom  = GetRandomInt(0, TSkins_Count  - 1);
+			new ctrandom = GetRandomInt(0, CTSkins_Count - 1);
+
 			// Set skin depends on client's team
 			switch (GetClientTeam(client))
 			{
@@ -141,11 +147,15 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 					// If random model should be accepted, get random skin of all avalible skins
 					if (GetConVarBool(sc_random) && Selected[client] == -1)
 					{
-						SetEntityModel(client, TerrorSkin[GetRandomInt(0, TSkins_Count - 1)]);
+						SetEntityModel(client, TerrorSkin[trandom]);
+
+						// It works!!
+						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[trandom]);
 					}
 					else if (model > -1 && model < TSkins_Count)
 					{
 						SetEntityModel(client, TerrorSkin[model]);
+						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[model]);
 					}
 				}
 				case CS_TEAM_CT: // Counter-Terrorists
@@ -153,7 +163,8 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 					// Also make sure that player havent chosen any skin yet
 					if (GetConVarBool(sc_random) && Selected[client] == -1)
 					{
-						SetEntityModel(client, CTerrorSkin[GetRandomInt(0, CTSkins_Count - 1)]);
+						SetEntityModel(client, CTerrorSkin[ctrandom]);
+						SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[ctrandom]);
 					}
 
 					// Model index must be valid (more than map default and less than max)
@@ -161,6 +172,7 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 					{
 						// And set the model
 						SetEntityModel(client, CTerrorSkin[model]);
+						SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[model]);
 					}
 				}
 			}
@@ -186,9 +198,9 @@ public Action:Command_SkinsMenu(client, args)
 			// Converts a string of flag characters to a bit string
 			AdmFlag = ReadFlagString(admflag);
 
-			// Check if player is having any access (including NO-privilegies)
+			// Check if player is having any access (including skins overrides)
 			if (AdmFlag == 0
-			|| (AdmFlag >  0 && CheckCommandAccess(client, NULL_STRING, AdmFlag, true)))
+			|| (AdmFlag >  0 && CheckCommandAccess(client, "csgo_skins_override", AdmFlag, true)))
 			{
 				// Show individual skin menu depends on client's team
 				switch (GetClientTeam(client))
@@ -213,24 +225,130 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
 	// Called when player pressed something in a menu
 	if (action == MenuAction_Select)
 	{
-		// This is a hack... it's hard to explain, so just dont touch values here!
-		decl String:skin_id[3]; GetMenuItem(menu, param, skin_id, sizeof(skin_id));
-		new skin = StringToInt(skin_id, 10);
+		// Don't use any other value than 10, otherwise you may crash clients and a server!
+		decl String:skin_id[10];
+		GetMenuItem(menu, param, skin_id, sizeof(skin_id));
+
+		new skin = StringToInt(skin_id, sizeof(skin_id));
 
 		// Save 'the chosen one'
 		Selected[client] = skin;
 
-		// Set player model immediately if needed
+		// Set player model and arms immediately
 		if (GetConVarBool(sc_changetype))
 		{
 			// Depends on client team obviously
 			switch (GetClientTeam(client))
 			{
-				case CS_TEAM_T:  SetEntityModel(client, TerrorSkin[skin]);
-				case CS_TEAM_CT: SetEntityModel(client, CTerrorSkin[skin]);
+				case CS_TEAM_T:
+				{
+					// Arms will change after weapon selection
+					SetEntityModel(client, TerrorSkin[skin]);
+					SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[skin]);
+				}
+				case CS_TEAM_CT:
+				{
+					SetEntityModel(client, CTerrorSkin[skin]);
+					SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[skin]);
+				}
 			}
 		}
 	}
+}
+
+/* PrepareConfig()
+ *
+ * Adds skins to a menu, makes limits for allowed skins
+ * ------------------------------------------------------------------------------------------ */
+PrepareConfig(const String:file[])
+{
+	// Creates a new KeyValues structure
+	new Handle:kv = CreateKeyValues("Skins");
+
+	// Convert given file to a KeyValues tree
+	FileToKeyValues(kv, file);
+
+	// Get 'Terrorists' section
+	if (KvJumpToKey(kv, "Terrorists"))
+	{
+		decl String:section[64], String:skin[64], String:arms[64], String:skin_id[3];
+
+		// Sets the current position in the KeyValues tree to the first sub key
+		KvGotoFirstSubKey(kv);
+
+		do
+		{
+			// Get current section name
+			KvGetSectionName(kv, section, sizeof(section));
+
+			// Also make sure we've got 'skin' and 'arms' sections!
+			if (KvGetString(kv, "skin", skin, sizeof(skin))
+			&&  KvGetString(kv, "arms", arms, sizeof(arms)))
+			{
+				// Copy the full path of skin from config and save it
+				strcopy(TerrorSkin[TSkins_Count], sizeof(TerrorSkin[]), skin);
+				strcopy(TerrorArms[TSkins_Count], sizeof(TerrorArms[]), arms);
+
+				Format(skin_id, sizeof(skin_id), "%d", TSkins_Count++);
+
+				AddMenuItem(t_skins_menu, skin_id, section);
+
+				// Precache every added model to prevent client crashes
+				PrecacheModel(skin);
+				PrecacheModel(arms);
+			}
+			else LogError("Player or arms model for \"%s\" is missing!", section); // Otherwise error it!
+		}
+
+		// Because we need to process all keys!
+		while (KvGotoNextKey(kv));
+	}
+	else SetFailState("Fatal error: Missing \"Terrorists\" section!");
+
+	// Get back to the top
+	KvRewind(kv);
+
+	// Check CT config right now
+	if (KvJumpToKey(kv, "Counter-Terrorists"))
+	{
+		decl String:section[64], String:skin[64], String:arms[64], String:skin_id[3];
+
+		KvGotoFirstSubKey(kv);
+
+		// Lets begin
+		do
+		{
+			KvGetSectionName(kv, section, sizeof(section));
+
+			if (KvGetString(kv, "skin", skin, sizeof(skin))
+			&&  KvGetString(kv, "arms", arms, sizeof(arms)))
+			{
+				strcopy(CTerrorSkin[CTSkins_Count], sizeof(CTerrorSkin[]), skin);
+				strcopy(CTerrorArms[CTSkins_Count], sizeof(CTerrorArms[]), arms);
+
+				// Calculate number of avalible CT skins
+				Format(skin_id, sizeof(skin_id), "%d", CTSkins_Count++);
+
+				// Add every section as a menu item
+				AddMenuItem(ct_skins_menu, skin_id, section);
+
+				PrecacheModel(skin);
+
+				// Precache arms too. Those will not crash client, but arms will not be shown at all
+				PrecacheModel(arms);
+			}
+
+			// Whoops something was wrong here
+			else LogError("Player or arms model for \"%s\" is missing!", section);
+		}
+		while (KvGotoNextKey(kv));
+	}
+	else SetFailState("Fatal error: Missing \"Counter-Terrorists\" section!");
+
+	KvRewind(kv);
+
+	// Local handles must be closed!
+	CloseHandle(kv);
 }
 
 /* PrepareMenus()
@@ -239,7 +357,7 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
  * ------------------------------------------------------------------------------------------ */
 PrepareMenus()
 {
-	// I'd use zero, but 1 is fixing some issues with selected skins
+	// Firstly reset amount of avalible skins
 	TSkins_Count = 0, CTSkins_Count = 0;
 
 	// Then make sure that menu handler is closed
@@ -265,136 +383,8 @@ PrepareMenus()
 	SetMenuTitle(ct_skins_menu, "Choose your Counter-Terrorist skin:");
 }
 
-/* ParseConfigFile()
- *
- * Parses a config file.
- * ------------------------------------------------------------------------------------------ */
-bool:ParseConfigFile(const String:file[])
-{
-	// Create parser with all sections (start & end)
-	new Handle:parser = SMC_CreateParser();
-	SMC_SetReaders (parser, Config_NewSection, Config_UnknownKeyValue, Config_EndSection);
-	SMC_SetParseEnd(parser, Config_End);
-
-	// Init everything
-	new String:error[256], line, col, SMCError:result = SMC_ParseFile(parser, file, line, col);
-
-	// Close handle
-	CloseHandle(parser);
-
-	// Check result
-	if (result != SMCError_Okay)
-	{
-		SMC_GetErrorString(result, error, sizeof(error));
-		LogError("%s on line %i, col %i of %s", error, line, col, file);
-	}
-	return (result == SMCError_Okay);
-}
-
-/* Config_NewSection()
- *
- * Called when the parser is entering a new section or sub-section.
- * ------------------------------------------------------------------------------------------ */
-public SMCResult:Config_NewSection(Handle:parser, const String:section[], bool:quotes)
-{
-	// Ignore first config level ("Skins")
-	ConfigLevel++;
-
-	// Checking second config level
-	if (ConfigLevel == 2)
-	{
-		// Checking if menu names is correct
-		if (StrEqual(section, "Terrorists"))
-			SMC_SetReaders(parser, Config_NewSection, Config_TerroristSkins, Config_EndSection);
-
-		/* Correct - then set the three main reader functions */
-		else if (StrEqual(section, "Counter-Terrorists"))
-			SMC_SetReaders(parser, Config_NewSection, Config_CounterTerroristSkins, Config_EndSection);
-	}
-	// Anyway create pointers
-	else SMC_SetReaders(parser, Config_NewSection, Config_UnknownKeyValue, Config_EndSection);
-	return SMCParse_Continue;
-}
-
-/* Config_UnknownKeyValue()
- *
- * Called when the parser finds a new key/value pair.
- * ------------------------------------------------------------------------------------------ */
-public SMCResult:Config_UnknownKeyValue(Handle:parser, const String:key[], const String:value[], bool:key_quotes, bool:value_quotes)
-{
-	// Disable a plugin if unknown key value found in a config file
-	SetFailState("\nDid not recognize configuration: %s = %s !", key, value);
-	return SMCParse_Continue;
-}
-
-/* Config_TerroristSkins()
- *
- * Called when the parser finds a first key/value pair.
- * ------------------------------------------------------------------------------------------ */
-public SMCResult:Config_TerroristSkins(Handle:parser, const String:skin_fullpath[], const String:skin_name[], bool:key_quotes, bool:value_quotes)
-{
-	decl String:skin_id[3];
-
-	// Copy the full path of skin from config and save it
-	strcopy(TerrorSkin[TSkins_Count], sizeof(TerrorSkin[]), skin_fullpath);
-	Format(skin_id, sizeof(skin_id), "%d", TSkins_Count++);
-	AddMenuItem(t_skins_menu, skin_id, skin_name);
-
-	// Precache every added model to prevent client crashes
-	PrecacheModel(skin_fullpath);
-	return SMCParse_Continue;
-}
-
-/* Config_CounterTerroristSkins()
- *
- * Called when the parser finds a second key/value pair.
- * ------------------------------------------------------------------------------------------ */
-public SMCResult:Config_CounterTerroristSkins(Handle:parser, const String:skin_fullpath[], const String:skin_name[], bool:key_quotes, bool:value_quotes)
-{
-	decl String:skin_id[3];
-	strcopy(CTerrorSkin[CTSkins_Count], sizeof(CTerrorSkin[]), skin_fullpath);
-
-	// Calculate number of avalible terror skins
-	Format(skin_id, sizeof(skin_id), "%d", CTSkins_Count++);
-
-	// Add every skin as a menu item
-	AddMenuItem(ct_skins_menu, skin_id, skin_name);
-	PrecacheModel(skin_fullpath);
-
-	// continue
-	return SMCParse_Continue;
-}
-
-/* Config_EndSection()
- *
- * Called when the parser finds the end of the current section.
- * ------------------------------------------------------------------------------------------ */
-public SMCResult:Config_EndSection(Handle:parser)
-{
-	// Config is ready - return to original level ("Skins")
-	ConfigLevel--;
-
-	// I prefer textparse, because there is possible to easy add/remove weapons/sections with no issues
-	SMC_SetReaders(parser, Config_NewSection, Config_UnknownKeyValue, Config_EndSection);
-	return SMCParse_Continue;
-}
-
-/* Config_End()
- *
- * Called when the config is ready.
- * ------------------------------------------------------------------------------------------ */
-public Config_End(Handle:parser, bool:halted, bool:failed)
-{
-	// Disable plugin because something went wrong
-	if (failed) SetFailState("\nPlugin configuration error!");
-}
-
 /* IsValidClient()
  *
  * Checks if a client is valid.
  * ------------------------------------------------------------------------------------------ */
-bool:IsValidClient(client)
-{
-	// Default checking of valid player
-	return (client > 0 && client <= MaxClients && IsClientInGame(client) && IsPlayerAlive(client)) ? true : false;
-}
+bool:IsValidClient(client) return (client > 0 && client <= MaxClients && IsClientInGame(client) && IsPlayerAlive(client)) ? true : false;
