@@ -4,21 +4,17 @@
 	{
 		"Version"
 		{
-			"Latest"		"1.2.0"
-			"Previous"		"1.1.1"
+			"Latest"		"1.2.1"
+			"Previous"		"1.2.0"
 		}
 
-		"Notes"	"Changes in 1.2.0:"
-		"Notes"	"Rewrote configuration file for plugin (now using KeyValues insead of SourceMod parser)"
-		"Notes"	"Added player hands support!"
-		"Notes"	"Added support to command access via \"csgo_skins_override\""
-		"Notes"	"Slightly optimized plugin"
+		"Notes"	"Changes in 1.2.1:"
+		"Notes"	"Added requested 'Random' skin option"
 	}
 
 	"Files"
 	{
 		"Plugin"		"Path_SM/plugins/csgo_skins.smx"
-		"Plugin"		"Path_SM/configs/skins/any.cfg"
 		"Source"		"Path_SM/scripting/csgo_skins.sp"
 	}
 }

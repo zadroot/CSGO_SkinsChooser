@@ -4,7 +4,7 @@
 * Description:
 *   Changes player skin & arms on the fly without editing any configuration files.
 *
-* Version 1.2.0
+* Version 1.2.1
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -19,9 +19,11 @@
 
 // ====[ CONSTANTS ]=========================================================================
 #define PLUGIN_NAME     "CS:GO Skins Chooser"
-#define PLUGIN_VERSION  "1.2.0"
+#define PLUGIN_VERSION  "1.2.1"
 #define UPDATE_URL      "https://raw.github.com/zadroot/CSGO_SkinsChooser/master/updater.txt"
 #define MAX_SKINS_COUNT 72
+#define MAX_SKIN_LENGTH 41
+#define RANDOM_SKIN     -1
 
 // ====[ VARIABLES ]=========================================================================
 new	Handle:sc_enable     = INVALID_HANDLE,
@@ -30,11 +32,11 @@ new	Handle:sc_enable     = INVALID_HANDLE,
 	Handle:sc_admflag    = INVALID_HANDLE,
 	Handle:t_skins_menu  = INVALID_HANDLE,
 	Handle:ct_skins_menu = INVALID_HANDLE,
-	String:TerrorSkin[MAX_SKINS_COUNT][64],
-	String:TerrorArms[MAX_SKINS_COUNT][64],
-	String:CTerrorSkin[MAX_SKINS_COUNT][64],
-	String:CTerrorArms[MAX_SKINS_COUNT][64],
-	AdmFlag, TSkins_Count, CTSkins_Count, Selected[MAXPLAYERS + 1] = {-1, ...};
+	String:TerrorSkin[MAX_SKINS_COUNT][MAX_SKIN_LENGTH],
+	String:TerrorArms[MAX_SKINS_COUNT][MAX_SKIN_LENGTH],
+	String:CTerrorSkin[MAX_SKINS_COUNT][MAX_SKIN_LENGTH],
+	String:CTerrorArms[MAX_SKINS_COUNT][MAX_SKIN_LENGTH],
+	AdmFlag, TSkins_Count, CTSkins_Count, Selected[MAXPLAYERS + 1] = {RANDOM_SKIN, ...};
 
 // ====[ PLUGIN ]============================================================================
 public Plugin:myinfo =
@@ -145,14 +147,14 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 				case CS_TEAM_T: // Terrorists
 				{
 					// If random model should be accepted, get random skin of all avalible skins
-					if (GetConVarBool(sc_random) && Selected[client] == -1)
+					if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
 					{
 						SetEntityModel(client, TerrorSkin[trandom]);
 
 						// It works!!
 						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[trandom]);
 					}
-					else if (model > -1 && model < TSkins_Count)
+					else if (model > RANDOM_SKIN && model < TSkins_Count)
 					{
 						SetEntityModel(client, TerrorSkin[model]);
 						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[model]);
@@ -161,14 +163,14 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 				case CS_TEAM_CT: // Counter-Terrorists
 				{
 					// Also make sure that player havent chosen any skin yet
-					if (GetConVarBool(sc_random) && Selected[client] == -1)
+					if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
 					{
 						SetEntityModel(client, CTerrorSkin[ctrandom]);
 						SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[ctrandom]);
 					}
 
 					// Model index must be valid (more than map default and less than max)
-					else if (model > -1 && model < CTSkins_Count)
+					else if (model > RANDOM_SKIN && model < CTSkins_Count)
 					{
 						// And set the model
 						SetEntityModel(client, CTerrorSkin[model]);
@@ -231,28 +233,32 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
 
 		new skin = StringToInt(skin_id, sizeof(skin_id));
 
-		// Save 'the chosen one'
-		Selected[client] = skin;
-
-		// Set player model and arms immediately
-		if (GetConVarBool(sc_changetype))
+		// Make sure we havent selected random skin
+		if (!StrEqual(skin_id, "Random"))
 		{
-			// Depends on client team obviously
-			switch (GetClientTeam(client))
+			// Correct. So lets save the selected skin
+			Selected[client] = skin;
+
+			// Set player model and arms immediately
+			if (GetConVarBool(sc_changetype))
 			{
-				case CS_TEAM_T:
+				// Depends on client team obviously
+				switch (GetClientTeam(client))
 				{
-					// Arms will change after weapon selection
-					SetEntityModel(client, TerrorSkin[skin]);
-					SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[skin]);
-				}
-				case CS_TEAM_CT:
-				{
-					SetEntityModel(client, CTerrorSkin[skin]);
-					SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[skin]);
+					case CS_TEAM_T:
+					{
+						SetEntityModel(client, TerrorSkin[skin]);
+						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[skin]);
+					}
+					case CS_TEAM_CT:
+					{
+						SetEntityModel(client, CTerrorSkin[skin]);
+						SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[skin]);
+					}
 				}
 			}
 		}
+		else Selected[client] = RANDOM_SKIN;
 	}
 }
 
@@ -315,7 +321,7 @@ PrepareConfig(const String:file[])
 
 		KvGotoFirstSubKey(kv);
 
-		// Lets begin
+		// Lets begin!
 		do
 		{
 			KvGetSectionName(kv, section, sizeof(section));
@@ -360,14 +366,12 @@ PrepareMenus()
 	// Firstly reset amount of avalible skins
 	TSkins_Count = 0, CTSkins_Count = 0;
 
-	// Then make sure that menu handler is closed
+	// Then make sure that menu handlers is closed
 	if (t_skins_menu != INVALID_HANDLE)
 	{
 		CloseHandle(t_skins_menu);
 		t_skins_menu = INVALID_HANDLE;
 	}
-
-	// For both teams
 	if (ct_skins_menu != INVALID_HANDLE)
 	{
 		CloseHandle(ct_skins_menu);
@@ -381,6 +385,12 @@ PrepareMenus()
 	// And finally set the menu's titles
 	SetMenuTitle(t_skins_menu,  "Choose your Terrorist skin:");
 	SetMenuTitle(ct_skins_menu, "Choose your Counter-Terrorist skin:");
+
+	if (GetConVarBool(sc_random))
+	{
+		AddMenuItem(t_skins_menu,  "Random", "Random");
+		AddMenuItem(ct_skins_menu, "Random", "Random");
+	}
 }
 
 /* IsValidClient()
