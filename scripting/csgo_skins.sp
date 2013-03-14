@@ -2,9 +2,9 @@
 * CS:GO Skins Chooser by Root
 *
 * Description:
-*   Changes player skin & arms on the fly without editing any configuration files.
+*   Changes player skin and appropriate arms on the fly without editing any configuration files.
 *
-* Version 1.2.1
+* Version 1.2.2
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -19,7 +19,7 @@
 
 // ====[ CONSTANTS ]=========================================================================
 #define PLUGIN_NAME     "CS:GO Skins Chooser"
-#define PLUGIN_VERSION  "1.2.1"
+#define PLUGIN_VERSION  "1.2.2"
 #define UPDATE_URL      "https://raw.github.com/zadroot/CSGO_SkinsChooser/master/updater.txt"
 #define MAX_SKINS_COUNT 72
 #define MAX_SKIN_LENGTH 41
@@ -60,14 +60,14 @@ public OnPluginStart()
 	sc_enable     = CreateConVar("sm_csgo_skins_enable",  "1", "Whether or not enable CS:GO Skins Chooser plugin",                                   FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_random     = CreateConVar("sm_csgo_skins_random",  "1", "Whether or not randomly change models for all players on every respawn",             FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\n1 = Immediately", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN, true, 0.0);
 
 	// Create/register client commands
 	RegConsoleCmd("skin",  Command_SkinsMenu);
 	RegConsoleCmd("skins", Command_SkinsMenu);
 	RegConsoleCmd("model", Command_SkinsMenu);
 
-	// Hook respawning event
+	// Hook post-respawn event
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
 
 	// Create and exec plugin configuration file
@@ -101,7 +101,7 @@ public OnMapStart()
 		// Then use default one
 		BuildPath(Path_SM, file, sizeof(file), "configs/skins/any.cfg");
 
-		// No config wtf?
+		// No config wtf?!
 		if (!FileExists(file)) SetFailState("Fatal error: Unable to open generic configuration file \"%s\"", file);
 	}
 
@@ -191,10 +191,10 @@ public Action:Command_SkinsMenu(client, args)
 	if (GetConVarBool(sc_enable))
 	{
 		// Once again make sure that client is valid
-		if (IsValidClient(client) || !GetConVarBool(sc_changetype))
+		if (IsValidClient(client) && (IsPlayerAlive(client) || !GetConVarBool(sc_changetype)))
 		{
 			// Get flag name from convar string and get client's access
-			decl String:admflag[2];
+			decl String:admflag[AdminFlags_TOTAL];
 			GetConVarString(sc_admflag, admflag, sizeof(admflag));
 
 			// Converts a string of flag characters to a bit string
@@ -202,7 +202,7 @@ public Action:Command_SkinsMenu(client, args)
 
 			// Check if player is having any access (including skins overrides)
 			if (AdmFlag == 0
-			|| (AdmFlag >  0 && CheckCommandAccess(client, "csgo_skins_override", AdmFlag, true)))
+			||  AdmFlag != 0 && CheckCommandAccess(client, "csgo_skins_override", AdmFlag, true))
 			{
 				// Show individual skin menu depends on client's team
 				switch (GetClientTeam(client))
@@ -300,10 +300,10 @@ PrepareConfig(const String:file[])
 				AddMenuItem(t_skins_menu, skin_id, section);
 
 				// Precache every added model to prevent client crashes
-				PrecacheModel(skin);
-				PrecacheModel(arms);
+				PrecacheModel(skin, true);
+				PrecacheModel(arms, true);
 			}
-			else LogError("Player or arms model for \"%s\" is missing!", section); // Otherwise error it!
+			else LogError("Player/arms model for \"%s\" is missing!", section); // Otherwise log an error
 		}
 
 		// Because we need to process all keys!
@@ -338,14 +338,14 @@ PrepareConfig(const String:file[])
 				// Add every section as a menu item
 				AddMenuItem(ct_skins_menu, skin_id, section);
 
-				PrecacheModel(skin);
+				PrecacheModel(skin, true);
 
 				// Precache arms too. Those will not crash client, but arms will not be shown at all
-				PrecacheModel(arms);
+				PrecacheModel(arms, true);
 			}
 
-			// Whoops something was wrong here
-			else LogError("Player or arms model for \"%s\" is missing!", section);
+			// Whoops something was wrong here!
+			else LogError("Player/arms model for \"%s\" is missing!", section);
 		}
 		while (KvGotoNextKey(kv));
 	}
@@ -353,7 +353,7 @@ PrepareConfig(const String:file[])
 
 	KvRewind(kv);
 
-	// Local handles must be closed!
+	// Local handles must be freed!
 	CloseHandle(kv);
 }
 
@@ -397,4 +397,4 @@ PrepareMenus()
  *
  * Checks if a client is valid.
  * ------------------------------------------------------------------------------------------ */
-bool:IsValidClient(client) return (client > 0 && client <= MaxClients && IsClientInGame(client) && IsPlayerAlive(client)) ? true : false;
+bool:IsValidClient(client) return (client > 0 && client <= MaxClients && IsClientInGame(client) && !GetEntProp(client, Prop_Send, "m_bIsControllingBot")) ? true : false;
