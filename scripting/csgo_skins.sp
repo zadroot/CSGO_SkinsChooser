@@ -4,7 +4,7 @@
 * Description:
 *   Changes player skin and appropriate arms on the fly without editing any configuration files.
 *
-* Version 1.2.2
+* Version 1.2.3
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -19,7 +19,7 @@
 
 // ====[ CONSTANTS ]=========================================================================
 #define PLUGIN_NAME     "CS:GO Skins Chooser"
-#define PLUGIN_VERSION  "1.2.2"
+#define PLUGIN_VERSION  "1.2.3"
 #define UPDATE_URL      "https://raw.github.com/zadroot/CSGO_SkinsChooser/master/updater.txt"
 #define MAX_SKINS_COUNT 72
 #define MAX_SKIN_LENGTH 41
@@ -56,11 +56,11 @@ public Plugin:myinfo =
 public OnPluginStart()
 {
 	// Create console variables
-	CreateConVar("sm_csgo_skins_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_PLUGIN|FCVAR_SPONLY);
+	CreateConVar("sm_csgo_skins_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	sc_enable     = CreateConVar("sm_csgo_skins_enable",  "1", "Whether or not enable CS:GO Skins Chooser plugin",                                   FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_random     = CreateConVar("sm_csgo_skins_random",  "1", "Whether or not randomly change models for all players on every respawn",             FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\n1 = Immediately", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN, true, 0.0);
+	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN);
 
 	// Create/register client commands
 	RegConsoleCmd("skin",  Command_SkinsMenu);
@@ -87,22 +87,30 @@ public OnPluginStart()
 public OnMapStart()
 {
 	// Declare string to load skin's config from sourcemod/configs folder
-	decl String:file[PLATFORM_MAX_PATH], String:curmap[64];
+	decl String:file[PLATFORM_MAX_PATH], String:curmap[PLATFORM_MAX_PATH];
 
-	// Get current map
 	GetCurrentMap(curmap, sizeof(curmap));
 
-	// Let's check that custom skin configuration file is exists for this map
-	BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.cfg", curmap);
+	// Does current map string is contains a "workshop" word ?
+	if (StrContains(curmap, "workshop", false) != -1)
+	{
+		// If yes - skip the first 19 characters to avoid comparing the "workshop/12345678" prefix
+		BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.cfg", curmap[19]);
+	}
+	else /* That's not a workshop map */
+	{
+		// Let's check that custom skin configuration file is exists for current map
+		BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.cfg", curmap);
+	}
 
-	// Could not read config for new map
+	// Unfortunately config for current map is not exists
 	if (!FileExists(file))
 	{
 		// Then use default one
 		BuildPath(Path_SM, file, sizeof(file), "configs/skins/any.cfg");
 
-		// No config wtf?!
-		if (!FileExists(file)) SetFailState("Fatal error: Unable to open generic configuration file \"%s\"", file);
+		// Disable plugin if no generic config is avaliable
+		if (!FileExists(file)) SetFailState("Fatal error: Unable to open generic configuration file \"%s\"!", file);
 	}
 
 	// Refresh menus and config
@@ -116,7 +124,7 @@ public OnMapStart()
  * ------------------------------------------------------------------------------------------ */
 public OnLibraryAdded(const String:name[])
 {
-	// Updater stuff
+	// Updater
 	if (StrEqual(name, "updater")) Updater_AddPlugin(UPDATE_URL);
 }
 
@@ -126,13 +134,14 @@ public OnLibraryAdded(const String:name[])
  * ------------------------------------------------------------------------------------------ */
 public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	// Skip event if plugin is disabled
+	// Plugin is enabled ?
 	if (GetConVarBool(sc_enable))
 	{
+		// Get real player index from event
 		new client = GetClientOfUserId(GetEventInt(event, "userid"));
 
 		// Plugin should work only with valid clients
-		if (IsValidClient(client))
+		if (IsValidClient(client) && (GetConVarBool(sc_random) || !GetEntProp(client, Prop_Send, "m_bIsControllingBot")))
 		{
 			// Get chosen model if avalible
 			new model = Selected[client];
@@ -151,7 +160,7 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 					{
 						SetEntityModel(client, TerrorSkin[trandom]);
 
-						// It works!!
+						// Same random int
 						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[trandom]);
 					}
 					else if (model > RANDOM_SKIN && model < TSkins_Count)
@@ -227,15 +236,16 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
 	// Called when player pressed something in a menu
 	if (action == MenuAction_Select)
 	{
-		// Don't use any other value than 10, otherwise you may crash clients and a server!
+		// Don't use any other value than 10, otherwise you may crash clients and a server
 		decl String:skin_id[10];
 		GetMenuItem(menu, param, skin_id, sizeof(skin_id));
-
-		new skin = StringToInt(skin_id, sizeof(skin_id));
 
 		// Make sure we havent selected random skin
 		if (!StrEqual(skin_id, "Random"))
 		{
+			// Get skin number
+			new skin = StringToInt(skin_id, sizeof(skin_id));
+
 			// Correct. So lets save the selected skin
 			Selected[client] = skin;
 
@@ -277,7 +287,7 @@ PrepareConfig(const String:file[])
 	// Get 'Terrorists' section
 	if (KvJumpToKey(kv, "Terrorists"))
 	{
-		decl String:section[64], String:skin[64], String:arms[64], String:skin_id[3];
+		decl String:section[MAX_SKINS_COUNT], String:skin[MAX_SKINS_COUNT], String:arms[MAX_SKINS_COUNT], String:skin_id[3];
 
 		// Sets the current position in the KeyValues tree to the first sub key
 		KvGotoFirstSubKey(kv);
@@ -287,7 +297,7 @@ PrepareConfig(const String:file[])
 			// Get current section name
 			KvGetSectionName(kv, section, sizeof(section));
 
-			// Also make sure we've got 'skin' and 'arms' sections!
+			// Also make sure we've got 'skin' and 'arms' sections
 			if (KvGetString(kv, "skin", skin, sizeof(skin))
 			&&  KvGetString(kv, "arms", arms, sizeof(arms)))
 			{
@@ -299,14 +309,14 @@ PrepareConfig(const String:file[])
 
 				AddMenuItem(t_skins_menu, skin_id, section);
 
-				// Precache every added model to prevent client crashes
+				// Precache every model (before mapchange) to prevent client crashes
 				PrecacheModel(skin, true);
 				PrecacheModel(arms, true);
 			}
-			else LogError("Player/arms model for \"%s\" is missing!", section); // Otherwise log an error
+			else LogError("Player model or arms for \"%s\" is incorrect!", section);
 		}
 
-		// Because we need to process all keys!
+		// Because we need to process all keys
 		while (KvGotoNextKey(kv));
 	}
 	else SetFailState("Fatal error: Missing \"Terrorists\" section!");
@@ -317,11 +327,11 @@ PrepareConfig(const String:file[])
 	// Check CT config right now
 	if (KvJumpToKey(kv, "Counter-Terrorists"))
 	{
-		decl String:section[64], String:skin[64], String:arms[64], String:skin_id[3];
+		decl String:section[MAX_SKINS_COUNT], String:skin[MAX_SKINS_COUNT], String:arms[MAX_SKINS_COUNT], String:skin_id[3];
 
 		KvGotoFirstSubKey(kv);
 
-		// Lets begin!
+		// Lets begin
 		do
 		{
 			KvGetSectionName(kv, section, sizeof(section));
@@ -344,8 +354,8 @@ PrepareConfig(const String:file[])
 				PrecacheModel(arms, true);
 			}
 
-			// Whoops something was wrong here!
-			else LogError("Player/arms model for \"%s\" is missing!", section);
+			// Something is wrong
+			else LogError("Player model or arms for \"%s\" is incorrect!", section);
 		}
 		while (KvGotoNextKey(kv));
 	}
@@ -353,7 +363,7 @@ PrepareConfig(const String:file[])
 
 	KvRewind(kv);
 
-	// Local handles must be freed!
+	// Local handles must be freed
 	CloseHandle(kv);
 }
 
@@ -363,10 +373,10 @@ PrepareConfig(const String:file[])
  * ------------------------------------------------------------------------------------------ */
 PrepareMenus()
 {
-	// Firstly reset amount of avalible skins
-	TSkins_Count = 0, CTSkins_Count = 0;
+	// Firstly zero out amount of avalible skins
+	TSkins_Count = CTSkins_Count = 0;
 
-	// Then make sure that menu handlers is closed
+	// Then safely close menu handles
 	if (t_skins_menu != INVALID_HANDLE)
 	{
 		CloseHandle(t_skins_menu);
@@ -382,7 +392,7 @@ PrepareMenus()
 	t_skins_menu  = CreateMenu(MenuHandler_ChooseSkin, MenuAction_Select);
 	ct_skins_menu = CreateMenu(MenuHandler_ChooseSkin, MenuAction_Select);
 
-	// And finally set the menu's titles
+	// And dont forget to set the menu's titles
 	SetMenuTitle(t_skins_menu,  "Choose your Terrorist skin:");
 	SetMenuTitle(ct_skins_menu, "Choose your Counter-Terrorist skin:");
 
@@ -397,4 +407,4 @@ PrepareMenus()
  *
  * Checks if a client is valid.
  * ------------------------------------------------------------------------------------------ */
-bool:IsValidClient(client) return (client > 0 && client <= MaxClients && IsClientInGame(client) && !GetEntProp(client, Prop_Send, "m_bIsControllingBot")) ? true : false;
+bool:IsValidClient(client) return (client > 0 && client <= MaxClients && IsClientInGame(client)) ? true : false;
