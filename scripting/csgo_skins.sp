@@ -8,14 +8,11 @@
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
-// ====[ SEMICOLON ]=========================================================================
-#pragma semicolon 1
-
 // ====[ INCLUDES ]==========================================================================
 #include <sdktools>
 #include <cstrike>
 #undef REQUIRE_PLUGIN
-#include <updater>
+#tryinclude <updater>
 
 // ====[ CONSTANTS ]=========================================================================
 #define PLUGIN_NAME     "CS:GO Skins Chooser"
@@ -46,7 +43,7 @@ public Plugin:myinfo =
 	description = "Simply stock skin chooser for CS:GO",
 	version     = PLUGIN_VERSION,
 	url         = "forums.alliedmods.net/showthread.php?p=1889086"
-};
+}
 
 
 /* OnPluginStart()
@@ -62,22 +59,24 @@ public OnPluginStart()
 	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\n1 = Immediately", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN);
 
-	// Create/register client commands
-	RegConsoleCmd("skin",  Command_SkinsMenu);
-	RegConsoleCmd("skins", Command_SkinsMenu);
-	RegConsoleCmd("model", Command_SkinsMenu);
+	// Create/register client commands to setup player skins
+	RegConsoleCmd("sm_skin",  Command_SkinsMenu);
+	RegConsoleCmd("sm_skins", Command_SkinsMenu);
+	RegConsoleCmd("sm_model", Command_SkinsMenu);
 
-	// Hook post-respawn event
+	// Hook postspawn event to setup skins
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
 
-	// Create and exec plugin configuration file
+	// Create and exec plugin's configuration file
 	AutoExecConfig(true, "csgo_skins");
 
+#if defined _updater_included
 	if (LibraryExists("updater"))
 	{
 		// Adds plugin to the updater
 		Updater_AddPlugin(UPDATE_URL);
 	}
+#endif
 }
 
 /* OnMapStart()
@@ -88,7 +87,6 @@ public OnMapStart()
 {
 	// Declare string to load skin's config from sourcemod/configs folder
 	decl String:file[PLATFORM_MAX_PATH], String:curmap[PLATFORM_MAX_PATH];
-
 	GetCurrentMap(curmap, sizeof(curmap));
 
 	// Does current map string is contains a "workshop" word ?
@@ -118,6 +116,7 @@ public OnMapStart()
 	PrepareConfig(file);
 }
 
+#if defined _updater_included
 /* OnLibraryAdded()
  *
  * Called after a library is added that the current plugin references.
@@ -127,6 +126,7 @@ public OnLibraryAdded(const String:name[])
 	// Updater
 	if (StrEqual(name, "updater")) Updater_AddPlugin(UPDATE_URL);
 }
+#endif
 
 /* OnPlayerSpawn()
  *
@@ -163,7 +163,7 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 						// Same random int
 						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[trandom]);
 					}
-					else if (model > RANDOM_SKIN && model < TSkins_Count)
+					else if (RANDOM_SKIN < model < TSkins_Count)
 					{
 						SetEntityModel(client, TerrorSkin[model]);
 						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[model]);
@@ -179,7 +179,7 @@ public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 					}
 
 					// Model index must be valid (more than map default and less than max)
-					else if (model > RANDOM_SKIN && model < CTSkins_Count)
+					else if (RANDOM_SKIN < model < CTSkins_Count)
 					{
 						// And set the model
 						SetEntityModel(client, CTerrorSkin[model]);
@@ -278,7 +278,7 @@ public MenuHandler_ChooseSkin(Handle:menu, MenuAction:action, client, param)
  * ------------------------------------------------------------------------------------------ */
 PrepareConfig(const String:file[])
 {
-	// Creates a new KeyValues structure
+	// Creates a new KeyValues structure to setup player skins
 	new Handle:kv = CreateKeyValues("Skins");
 
 	// Convert given file to a KeyValues tree
@@ -407,4 +407,4 @@ PrepareMenus()
  *
  * Checks if a client is valid.
  * ------------------------------------------------------------------------------------------ */
-bool:IsValidClient(client) return (client > 0 && client <= MaxClients && IsClientInGame(client)) ? true : false;
+bool:IsValidClient(client) return (1 <= client <= MaxClients && IsClientInGame(client)) ? true : false;
