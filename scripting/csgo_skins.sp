@@ -33,7 +33,7 @@ new	Handle:sc_enable     = INVALID_HANDLE,
 	String:TerrorArms[MAX_SKINS_COUNT][MAX_SKIN_LENGTH],
 	String:CTerrorSkin[MAX_SKINS_COUNT][MAX_SKIN_LENGTH],
 	String:CTerrorArms[MAX_SKINS_COUNT][MAX_SKIN_LENGTH],
-	AdmFlag, TSkins_Count, CTSkins_Count, Selected[MAXPLAYERS + 1] = {RANDOM_SKIN, ...};
+	TSkins_Count, CTSkins_Count, Selected[MAXPLAYERS + 1] = {RANDOM_SKIN, ...};
 
 // ====[ PLUGIN ]============================================================================
 public Plugin:myinfo =
@@ -64,8 +64,9 @@ public OnPluginStart()
 	RegConsoleCmd("sm_skins", Command_SkinsMenu);
 	RegConsoleCmd("sm_model", Command_SkinsMenu);
 
-	// Hook postspawn event to setup skins
-	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
+	// Hook skins-related player events
+	HookEvent("player_spawn",      OnPlayerEvents, EventHookMode_Post);
+	HookEvent("player_disconnect", OnPlayerEvents, EventHookMode_Post);
 
 	// Create and exec plugin's configuration file
 	AutoExecConfig(true, "csgo_skins");
@@ -89,8 +90,8 @@ public OnMapStart()
 	decl String:file[PLATFORM_MAX_PATH], String:curmap[PLATFORM_MAX_PATH];
 	GetCurrentMap(curmap, sizeof(curmap));
 
-	// Does current map string is contains a "workshop" word ?
-	if (StrContains(curmap, "workshop", false) != -1)
+	// Does current map string contains a "workshop" prefix at a start?
+	if (strncmp(curmap, "workshop", 8) == 0)
 	{
 		// If yes - skip the first 19 characters to avoid comparing the "workshop/12345678" prefix
 		BuildPath(Path_SM, file, sizeof(file), "configs/skins/%s.cfg", curmap[19]);
@@ -128,66 +129,71 @@ public OnLibraryAdded(const String:name[])
 }
 #endif
 
-/* OnPlayerSpawn()
+/* OnPlayerEvents()
  *
- * Called after a player spawns.
+ * Called when player spawns or disconnects from a server.
  * ------------------------------------------------------------------------------------------ */
-public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	// Plugin is enabled ?
+	// Does plugin is enabled?
 	if (GetConVarBool(sc_enable))
 	{
-		// Get real player index from event
+		// Get real player index from event key
 		new client = GetClientOfUserId(GetEventInt(event, "userid"));
 
-		// Plugin should work only with valid clients
-		if (IsValidClient(client) && (GetConVarBool(sc_random) || !GetEntProp(client, Prop_Send, "m_bIsControllingBot")))
+		// player_spawn event was fired
+		if (name[7] == 's')
 		{
-			// Get chosen model if avalible
-			new model = Selected[client];
-
-			// Get same random number for using same arms and skin
-			new trandom  = GetRandomInt(0, TSkins_Count  - 1);
-			new ctrandom = GetRandomInt(0, CTSkins_Count - 1);
-
-			// Set skin depends on client's team
-			switch (GetClientTeam(client))
+			// Make sure player is valid and not controlling a bot
+			if (IsValidClient(client) && (GetConVarBool(sc_random) || !GetEntProp(client, Prop_Send, "m_bIsControllingBot")))
 			{
-				case CS_TEAM_T: // Terrorists
-				{
-					// If random model should be accepted, get random skin of all avalible skins
-					if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
-					{
-						SetEntityModel(client, TerrorSkin[trandom]);
+				// Get chosen model if avalible
+				new model = Selected[client];
 
-						// Same random int
-						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[trandom]);
-					}
-					else if (RANDOM_SKIN < model < TSkins_Count)
-					{
-						SetEntityModel(client, TerrorSkin[model]);
-						SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[model]);
-					}
-				}
-				case CS_TEAM_CT: // Counter-Terrorists
-				{
-					// Also make sure that player havent chosen any skin yet
-					if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
-					{
-						SetEntityModel(client, CTerrorSkin[ctrandom]);
-						SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[ctrandom]);
-					}
+				// Get same random number for using same arms and skin
+				new trandom  = GetRandomInt(0, TSkins_Count  - 1);
+				new ctrandom = GetRandomInt(0, CTSkins_Count - 1);
 
-					// Model index must be valid (more than map default and less than max)
-					else if (RANDOM_SKIN < model < CTSkins_Count)
+				// Set skin depends on client's team
+				switch (GetClientTeam(client))
+				{
+					case CS_TEAM_T: // Terrorists
 					{
-						// And set the model
-						SetEntityModel(client, CTerrorSkin[model]);
-						SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[model]);
+						// If random model should be accepted, get random skin of all avalible skins
+						if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
+						{
+							SetEntityModel(client, TerrorSkin[trandom]);
+
+							// Same random int
+							SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[trandom]);
+						}
+						else if (RANDOM_SKIN < model < TSkins_Count)
+						{
+							SetEntityModel(client, TerrorSkin[model]);
+							SetEntPropString(client, Prop_Send, "m_szArmsModel", TerrorArms[model]);
+						}
+					}
+					case CS_TEAM_CT: // Counter-Terrorists
+					{
+						// Also make sure that player havent chosen any skin yet
+						if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
+						{
+							SetEntityModel(client, CTerrorSkin[ctrandom]);
+							SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[ctrandom]);
+						}
+
+						// Model index must be valid (more than map default and less than max)
+						else if (RANDOM_SKIN < model < CTSkins_Count)
+						{
+							// And set the model
+							SetEntityModel(client, CTerrorSkin[model]);
+							SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[model]);
+						}
 					}
 				}
 			}
 		}
+		else Selected[client] = RANDOM_SKIN; // Reset skin on disconnect
 	}
 }
 
@@ -203,7 +209,7 @@ public Action:Command_SkinsMenu(client, args)
 		if (IsValidClient(client) && (IsPlayerAlive(client) || !GetConVarBool(sc_changetype)))
 		{
 			// Get flag name from convar string and get client's access
-			decl String:admflag[AdminFlags_TOTAL];
+			decl String:admflag[AdminFlags_TOTAL], AdmFlag;
 			GetConVarString(sc_admflag, admflag, sizeof(admflag));
 
 			// Converts a string of flag characters to a bit string
