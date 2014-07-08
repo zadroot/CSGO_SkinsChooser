@@ -55,7 +55,7 @@ public OnPluginStart()
 	// Create console variables
 	CreateConVar("sm_csgo_skins_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	sc_enable     = CreateConVar("sm_csgo_skins_enable",  "1", "Whether or not enable CS:GO Skins Chooser plugin",                                   FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	sc_random     = CreateConVar("sm_csgo_skins_random",  "1", "Whether or not randomly change models for all players on every respawn",             FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	sc_random     = CreateConVar("sm_csgo_skins_random",  "1", "Whether or not randomly change models for all players on every respawn\n2 = Once",   FCVAR_PLUGIN, true, 0.0, true, 2.0);
 	sc_changetype = CreateConVar("sm_csgo_skins_change",  "0", "Determines when change selected player skin:\n0 = On next respawn\n1 = Immediately", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	sc_admflag    = CreateConVar("sm_csgo_skins_admflag", "",  "If flag is specified (a-z), only admins with that flag will able to use skins menu", FCVAR_PLUGIN);
 
@@ -109,7 +109,10 @@ public OnMapStart()
 		BuildPath(Path_SM, file, sizeof(file), "configs/skins/any.cfg");
 
 		// Disable plugin if no generic config is avaliable
-		if (!FileExists(file)) SetFailState("Fatal error: Unable to open generic configuration file \"%s\"!", file);
+		if (!FileExists(file))
+		{
+			SetFailState("Fatal error: Unable to open generic configuration file \"%s\"!", file);
+		}
 	}
 
 	// Refresh menus and config
@@ -125,7 +128,10 @@ public OnMapStart()
 public OnLibraryAdded(const String:name[])
 {
 	// Updater
-	if (StrEqual(name, "updater")) Updater_AddPlugin(UPDATE_URL);
+	if (StrEqual(name, "updater"))
+	{
+		Updater_AddPlugin(UPDATE_URL);
+	}
 }
 #endif
 
@@ -140,27 +146,35 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 	{
 		// Get real player index from event key
 		new client = GetClientOfUserId(GetEventInt(event, "userid"));
+		new random = GetConVarInt(sc_random);
 
 		// player_spawn event was fired
 		if (name[7] == 's')
 		{
 			// Make sure player is valid and not controlling a bot
-			if (IsValidClient(client) && (GetConVarBool(sc_random) || !GetEntProp(client, Prop_Send, "m_bIsControllingBot")))
+			if (IsValidClient(client) && (random || !GetEntProp(client, Prop_Send, "m_bIsControllingBot")))
 			{
-				// Get chosen model if avalible
+				new team  = GetClientTeam(client);
 				new model = Selected[client];
 
 				// Get same random number for using same arms and skin
 				new trandom  = GetRandomInt(0, TSkins_Count  - 1);
 				new ctrandom = GetRandomInt(0, CTSkins_Count - 1);
 
+				// Change player skin to random only once
+				if (random == 2 && model == RANDOM_SKIN)
+				{
+					// And assign random model
+					Selected[client] = (team == CS_TEAM_T ? trandom : ctrandom);
+				}
+
 				// Set skin depends on client's team
-				switch (GetClientTeam(client))
+				switch (team)
 				{
 					case CS_TEAM_T: // Terrorists
 					{
 						// If random model should be accepted, get random skin of all avalible skins
-						if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
+						if (random == 1 && model == RANDOM_SKIN)
 						{
 							SetEntityModel(client, TerrorSkin[trandom]);
 
@@ -176,7 +190,7 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 					case CS_TEAM_CT: // Counter-Terrorists
 					{
 						// Also make sure that player havent chosen any skin yet
-						if (GetConVarBool(sc_random) && Selected[client] == RANDOM_SKIN)
+						if (random == 1 && model == RANDOM_SKIN)
 						{
 							SetEntityModel(client, CTerrorSkin[ctrandom]);
 							SetEntPropString(client, Prop_Send, "m_szArmsModel", CTerrorArms[ctrandom]);
@@ -193,7 +207,7 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 				}
 			}
 		}
-		else Selected[client] = RANDOM_SKIN; // Reset skin on disconnect
+		else Selected[client] = RANDOM_SKIN; // Reset skin on player_disconnect
 	}
 }
 
